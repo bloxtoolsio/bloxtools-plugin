@@ -118,16 +118,30 @@ end
 -- UI helpers (plain Instances; no external UI libs)
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Dark UI palette.
 local COLORS = {
-	bg = Color3.fromRGB(46, 46, 46),
-	row = Color3.fromRGB(56, 56, 56),
-	rowHover = Color3.fromRGB(66, 66, 66),
-	text = Color3.fromRGB(230, 230, 230),
-	dim = Color3.fromRGB(160, 160, 160),
-	accent = Color3.fromRGB(0, 162, 255),
-	bad = Color3.fromRGB(240, 110, 100),
-	good = Color3.fromRGB(120, 200, 130),
+	bg = Color3.fromRGB(11, 11, 13), -- canvas
+	surface = Color3.fromRGB(20, 20, 23), -- cards / inputs
+	field = Color3.fromRGB(20, 20, 23),
+	row = Color3.fromRGB(24, 24, 27), -- list rows
+	rowHover = Color3.fromRGB(34, 34, 38),
+	stroke = Color3.fromRGB(40, 40, 45), -- hairline borders
+	strokeStrong = Color3.fromRGB(60, 60, 66),
+	ink = Color3.fromRGB(250, 250, 250), -- headings, input text, grid
+	text = Color3.fromRGB(214, 214, 220), -- body
+	dim = Color3.fromRGB(140, 140, 146), -- captions / eyebrows
+	dim2 = Color3.fromRGB(96, 96, 102), -- placeholders
+	white = Color3.fromRGB(255, 255, 255), -- primary button fill
+	accent = Color3.fromRGB(96, 165, 250), -- focus / selection
+	bad = Color3.fromRGB(242, 116, 109),
+	good = Color3.fromRGB(63, 185, 80),
 }
+
+-- Maps a UI role to a built-in font. (Roblox can't load custom fonts in a
+-- distributed plugin, so these are the closest built-ins: Gotham, RobotoMono.)
+local function brandFont(_role, builtin, _weight)
+	return Font.fromEnum(builtin)
+end
 
 local function mk(className, props, parent)
 	local inst = Instance.new(className)
@@ -135,6 +149,28 @@ local function mk(className, props, parent)
 		inst[k] = v
 	end
 	inst.Parent = parent
+	return inst
+end
+
+-- Rounded corners / borders — tiny wrappers so every surface is styled the same.
+local function corner(inst, radius)
+	mk("UICorner", { CornerRadius = UDim.new(0, radius or 6) }, inst)
+	return inst
+end
+
+-- Fully-rounded "pill" (scale radius → rounds to any height the caller sets).
+local function pill(inst)
+	mk("UICorner", { CornerRadius = UDim.new(1, 0) }, inst)
+	return inst
+end
+
+local function stroke(inst, color, thickness, transparency)
+	mk("UIStroke", {
+		Color = color or COLORS.stroke,
+		Thickness = thickness or 1,
+		Transparency = transparency or 0,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
+	}, inst)
 	return inst
 end
 
@@ -146,38 +182,91 @@ local function mkLabel(parent, text, height, color)
 		TextColor3 = color or COLORS.text,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		TextTruncate = Enum.TextTruncate.AtEnd,
-		Font = Enum.Font.SourceSans,
-		TextSize = 16,
+		FontFace = brandFont("body", Enum.Font.Gotham),
+		TextSize = 15,
 	}, parent)
 end
 
+-- Secondary pill button (fill + hairline border). mkPrimaryButton overrides it.
 local function mkButton(parent, text, width)
-	return mk("TextButton", {
+	local btn = mk("TextButton", {
 		Text = text,
-		Size = UDim2.new(0, width or 130, 0, 26),
-		BackgroundColor3 = COLORS.row,
+		Size = UDim2.new(0, width or 130, 0, 32),
+		BackgroundColor3 = COLORS.surface,
 		TextColor3 = COLORS.text,
-		Font = Enum.Font.SourceSansSemibold,
-		TextSize = 15,
+		FontFace = brandFont("bodyMedium", Enum.Font.GothamMedium, Enum.FontWeight.Medium),
+		TextSize = 14,
 		AutoButtonColor = true,
 		BorderSizePixel = 0,
 	}, parent)
+	pill(btn)
+	stroke(btn, COLORS.strokeStrong, 1, 0)
+	return btn
 end
 
+-- Per-input border tracking, so Save can flag an invalid field red until edited.
+local fieldRing = setmetatable({}, { __mode = "k" }) -- TextBox -> UIStroke
+local fieldInvalid = setmetatable({}, { __mode = "k" }) -- TextBox -> true
+
+-- Rounded mono input with an accent focus ring. The TextBox is inset inside a
+-- clipping frame instead of using UIPadding, because Roblox ignores UIPadding
+-- for cursor-follow scrolling while editing (text would overflow the margins).
 local function mkTextBox(parent, placeholder)
-	return mk("TextBox", {
+	local box = mk("Frame", {
+		Size = UDim2.new(1, 0, 0, 34),
+		BackgroundColor3 = COLORS.field,
+		BorderSizePixel = 0,
+	}, parent)
+	corner(box, 8)
+	local ring = stroke(box, COLORS.strokeStrong, 1, 0)
+	-- Inset clip region = the input's true text area, so editing stays in bounds.
+	local clip = mk("Frame", {
+		Size = UDim2.new(1, -24, 1, 0),
+		Position = UDim2.new(0, 12, 0, 0),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+	}, box)
+	local input = mk("TextBox", {
 		PlaceholderText = placeholder,
 		Text = "",
 		ClearTextOnFocus = false,
-		Size = UDim2.new(1, -16, 0, 26),
-		BackgroundColor3 = COLORS.row,
-		TextColor3 = COLORS.text,
-		PlaceholderColor3 = COLORS.dim,
-		Font = Enum.Font.Code,
-		TextSize = 14,
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		TextColor3 = COLORS.ink,
+		PlaceholderColor3 = COLORS.dim2,
+		FontFace = brandFont("mono", Enum.Font.RobotoMono),
+		TextSize = 13,
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BorderSizePixel = 0,
-	}, parent)
+	}, clip)
+	fieldRing[input] = ring
+	local function applyRing()
+		if input:IsFocused() then
+			ring.Color, ring.Thickness = COLORS.ink, 1.5
+		elseif fieldInvalid[input] then
+			ring.Color, ring.Thickness = COLORS.bad, 1.5
+		else
+			ring.Color, ring.Thickness = COLORS.strokeStrong, 1
+		end
+	end
+	input.Focused:Connect(applyRing)
+	input.FocusLost:Connect(applyRing)
+	input:GetPropertyChangedSignal("Text"):Connect(function()
+		if fieldInvalid[input] then
+			fieldInvalid[input] = nil
+			applyRing()
+		end
+	end)
+	return input
+end
+
+-- Flag a field's border red (cleared when the user edits it).
+local function markFieldInvalid(input)
+	fieldInvalid[input] = true
+	local ring = fieldRing[input]
+	if ring then
+		ring.Color, ring.Thickness = COLORS.bad, 1.5
+	end
 end
 
 local function mkListFrame(parent)
@@ -202,56 +291,349 @@ local function mkListFrame(parent)
 	return frame
 end
 
+-- Small uppercase mono label used as a section eyebrow.
+local function mkEyebrow(parent, text)
+	return mk("TextLabel", {
+		Text = string.upper(text),
+		Size = UDim2.new(1, 0, 0, 14),
+		BackgroundTransparency = 1,
+		TextColor3 = COLORS.dim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = brandFont("mono", Enum.Font.RobotoMono),
+		TextSize = 12,
+	}, parent)
+end
+
+-- A rounded card with an eyebrow title and a vertical stack of fields.
+local function mkSection(parent, eyebrow)
+	local card = mk("Frame", {
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundColor3 = COLORS.surface,
+		BorderSizePixel = 0,
+	}, parent)
+	corner(card, 14)
+	stroke(card, COLORS.stroke, 1, 0)
+	mk("UIPadding", {
+		PaddingTop = UDim.new(0, 14),
+		PaddingBottom = UDim.new(0, 14),
+		PaddingLeft = UDim.new(0, 14),
+		PaddingRight = UDim.new(0, 14),
+	}, card)
+	mk("UIListLayout", {
+		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		HorizontalAlignment = Enum.HorizontalAlignment.Left,
+	}, card)
+	if eyebrow then
+		mkEyebrow(card, eyebrow).LayoutOrder = -100
+	end
+	return card
+end
+
+-- Field caption above an input.
+local function mkFieldLabel(parent, text)
+	return mk("TextLabel", {
+		Text = text,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		TextColor3 = COLORS.text,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = brandFont("bodyMedium", Enum.Font.GothamMedium, Enum.FontWeight.Medium),
+		TextSize = 14,
+		TextWrapped = true,
+	}, parent)
+end
+
+-- Smaller, fainter helper line under a caption.
+local function mkHelp(parent, text)
+	return mk("TextLabel", {
+		Text = text,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		TextColor3 = COLORS.dim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = brandFont("body", Enum.Font.Gotham),
+		TextSize = 12,
+		TextWrapped = true,
+	}, parent)
+end
+
+-- A status / value line. `mono` renders values (tokens, fingerprints) in mono.
+local function mkInfoLabel(parent, text, color, mono)
+	return mk("TextLabel", {
+		Text = text,
+		Size = UDim2.new(1, 0, 0, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		BackgroundTransparency = 1,
+		TextColor3 = color or COLORS.dim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = mono and brandFont("mono", Enum.Font.RobotoMono)
+			or brandFont("body", Enum.Font.Gotham),
+		TextSize = 13,
+		TextWrapped = true,
+	}, parent)
+end
+
+-- Primary pill: solid white fill, dark text, no border.
+local function mkPrimaryButton(parent, text, width)
+	local btn = mkButton(parent, text, width)
+	btn.BackgroundColor3 = COLORS.white
+	btn.TextColor3 = COLORS.bg
+	btn.FontFace = brandFont("bodyMedium", Enum.Font.GothamBold, Enum.FontWeight.SemiBold)
+	local edge = btn:FindFirstChildOfClass("UIStroke")
+	if edge then
+		edge.Transparency = 1
+	end
+	return btn
+end
+
+-- Faint grid drawn behind the content (ZIndex 0) as ambient texture.
+local function paintGrid(parent)
+	local layer = mk("Frame", {
+		Size = UDim2.new(1, 0, 1, 0),
+		BackgroundTransparency = 1,
+		ClipsDescendants = true,
+		ZIndex = 0,
+	}, parent)
+	local W, H, cell = 760, 1600, 30
+	for x = 0, W, cell do
+		mk("Frame", {
+			Size = UDim2.new(0, 1, 0, H),
+			Position = UDim2.new(0, x, 0, 0),
+			BackgroundColor3 = COLORS.ink,
+			BackgroundTransparency = 0.955,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+		}, layer)
+	end
+	for y = 0, H, cell do
+		mk("Frame", {
+			Size = UDim2.new(0, W, 0, 1),
+			Position = UDim2.new(0, 0, 0, y),
+			BackgroundColor3 = COLORS.ink,
+			BackgroundTransparency = 0.955,
+			BorderSizePixel = 0,
+			ZIndex = 0,
+		}, layer)
+	end
+	return layer
+end
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Brand assets (logo + toolbar icon)
+-- ─────────────────────────────────────────────────────────────────────────────
+--
+-- Pass an Image id to render it directly, or a Decal id to render it via
+-- rbxthumb. (To convert a Decal id to its Image id, run in the Command Bar:
+-- print(game:GetObjects("rbxassetid://<DECAL_ID>")[1].Texture))
+local function assetImage(imageId, decalId)
+	if imageId ~= "" then
+		return "rbxassetid://" .. imageId
+	elseif decalId ~= "" then
+		return "rbxthumb://type=Asset&id=" .. decalId .. "&w=420&h=420"
+	end
+	return ""
+end
+
+local LOGO_IMAGE = assetImage("", "102132691217053") -- (imageId, decalId)
+local ICON_IMAGE = assetImage("", "") -- toolbar icon; falls back to the logo
+local TOOLBAR_ICON = ICON_IMAGE ~= "" and ICON_IMAGE or LOGO_IMAGE
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Toolbar + widgets
 -- ─────────────────────────────────────────────────────────────────────────────
 
--- [STUDIO-VERIFY] plugin:CreateToolbar(name) and
--- toolbar:CreateButton(buttonId, tooltip, iconAssetId, text) — assumed
--- 4-arg form with empty icon falling back to the text label.
+-- One toolbar button toggles ONE combined dock widget; Errors and Settings live
+-- inside it as tabs (rather than two separate docks/buttons).
 local toolbar = plugin:CreateToolbar("BloxTools")
-local inspectorButton = toolbar:CreateButton("BloxToolsErrors", "Live error groups — click to jump to the line", "", "Errors")
-local settingsButton = toolbar:CreateButton("BloxToolsSettings", "Backend URL, access token, project key, game", "", "Settings")
+local toggleButton = toolbar:CreateButton("BloxToolsMain", "BloxTools — errors & settings", TOOLBAR_ICON, "BloxTools")
 
--- [STUDIO-VERIFY] DockWidgetPluginGuiInfo.new(initialDockState, initEnabled,
--- overrideEnabledRestore, floatWidth, floatHeight, minWidth, minHeight) and
--- plugin:CreateDockWidgetPluginGui(id, info). Widget restores its previous
--- enabled/dock state across sessions when overrideEnabledRestore = false.
-local inspectorWidget = plugin:CreateDockWidgetPluginGui(
-	"BloxToolsErrors",
-	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 340, 480, 280, 240)
+local mainWidget = plugin:CreateDockWidgetPluginGui(
+	"BloxToolsMain",
+	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Right, false, false, 360, 540, 300, 380)
 )
-inspectorWidget.Title = "BloxTools — Errors"
-
-local settingsWidget = plugin:CreateDockWidgetPluginGui(
-	"BloxToolsSettings",
-	DockWidgetPluginGuiInfo.new(Enum.InitialDockState.Float, false, false, 360, 460, 320, 380)
-)
-settingsWidget.Title = "BloxTools — Settings"
-
-inspectorButton.Click:Connect(function()
-	inspectorWidget.Enabled = not inspectorWidget.Enabled
-end)
-settingsButton.Click:Connect(function()
-	settingsWidget.Enabled = not settingsWidget.Enabled
+mainWidget.Title = "BloxTools"
+toggleButton.Click:Connect(function()
+	mainWidget.Enabled = not mainWidget.Enabled
 end)
 
--- ─────────────────────────────────────────────────────────────────────────────
--- Settings widget
--- ─────────────────────────────────────────────────────────────────────────────
+-- Forward-declared so the tab bar (built now) can drive the refresh logic that is
+-- defined further down with the Errors panel.
+local refreshPlanState
+local refreshInspector
+local activeTab = "settings"
 
-local settingsRoot = mk("Frame", {
+-- ── Shell: bg + grid + shared header + tab bar + content views ────────────────
+local mainRoot = mk("Frame", {
 	Size = UDim2.new(1, 0, 1, 0),
 	BackgroundColor3 = COLORS.bg,
 	BorderSizePixel = 0,
-}, settingsWidget)
-mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, settingsRoot)
-mk("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), PaddingTop = UDim.new(0, 8) }, settingsRoot)
+}, mainWidget)
+paintGrid(mainRoot)
+
+-- Shared header: logo + two-tone wordmark + mono eyebrow.
+local header = mk("Frame", {
+	Size = UDim2.new(1, -32, 0, 38),
+	Position = UDim2.new(0, 16, 0, 14),
+	BackgroundTransparency = 1,
+}, mainRoot)
+local hasLogo = LOGO_IMAGE ~= ""
+mk("ImageLabel", {
+	Image = LOGO_IMAGE,
+	Visible = hasLogo,
+	Size = UDim2.new(0, 38, 0, 38),
+	Position = UDim2.new(0, 0, 0.5, 0),
+	AnchorPoint = Vector2.new(0, 0.5),
+	BackgroundTransparency = 1,
+	ScaleType = Enum.ScaleType.Fit,
+}, header)
+local titleX = hasLogo and 48 or 0
+local titleCol = mk("Frame", {
+	Size = UDim2.new(1, -titleX, 1, 0),
+	Position = UDim2.new(0, titleX, 0, 0),
+	BackgroundTransparency = 1,
+}, header)
+mk("UIListLayout", {
+	Padding = UDim.new(0, 3),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+	VerticalAlignment = Enum.VerticalAlignment.Center,
+}, titleCol)
+mk("TextLabel", {
+	RichText = true,
+	Text = 'Blox<font color="#8A8A8E">Tools</font>',
+	Size = UDim2.new(1, 0, 0, 24),
+	BackgroundTransparency = 1,
+	TextColor3 = COLORS.ink,
+	TextXAlignment = Enum.TextXAlignment.Left,
+	FontFace = brandFont("display", Enum.Font.GothamBold, Enum.FontWeight.Bold),
+	TextSize = 22,
+}, titleCol)
+mkEyebrow(titleCol, "Ship with confidence")
+
+-- ── Tab bar: underline navigation ────────────────────────────────────────────
+local tabBar = mk("Frame", {
+	Size = UDim2.new(1, -32, 0, 24),
+	Position = UDim2.new(0, 16, 0, 60),
+	BackgroundTransparency = 1,
+}, mainRoot)
+mk("UIListLayout", {
+	FillDirection = Enum.FillDirection.Horizontal,
+	Padding = UDim.new(0, 22),
+	SortOrder = Enum.SortOrder.LayoutOrder,
+}, tabBar)
+local function mkTab(text, order)
+	-- Auto-width so the underline spans the label.
+	local t = mk("TextButton", {
+		Text = text,
+		Size = UDim2.new(0, 0, 1, 0),
+		AutomaticSize = Enum.AutomaticSize.X,
+		BackgroundTransparency = 1,
+		TextColor3 = COLORS.dim,
+		TextXAlignment = Enum.TextXAlignment.Left,
+		FontFace = brandFont("display", Enum.Font.GothamBold, Enum.FontWeight.Bold),
+		TextSize = 15,
+		AutoButtonColor = false,
+		BorderSizePixel = 0,
+		LayoutOrder = order,
+	}, tabBar)
+	local underline = mk("Frame", {
+		Name = "Underline",
+		Size = UDim2.new(1, 0, 0, 2), -- full width of the (text-hugging) tab
+		Position = UDim2.new(0, 0, 1, 0),
+		AnchorPoint = Vector2.new(0, 1),
+		BackgroundColor3 = COLORS.ink, -- monochrome (white), not the blue accent
+		BorderSizePixel = 0,
+		Visible = false,
+	}, t)
+	corner(underline, 1)
+	return t
+end
+local errorsTab = mkTab("Errors", 1)
+local settingsTab = mkTab("Settings", 2)
+
+-- Hairline separating the navigation from the panel below.
+mk("Frame", {
+	Size = UDim2.new(1, 0, 0, 1),
+	Position = UDim2.new(0, 0, 0, 90),
+	BackgroundColor3 = COLORS.stroke,
+	BorderSizePixel = 0,
+}, mainRoot)
+
+-- ── Content views (one visible at a time) ─────────────────────────────────────
+local contentArea = mk("Frame", {
+	Size = UDim2.new(1, 0, 1, -98),
+	Position = UDim2.new(0, 0, 0, 98),
+	BackgroundTransparency = 1,
+}, mainRoot)
+local errorsView = mk("Frame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+}, contentArea)
+local settingsView = mk("Frame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+}, contentArea)
+
+local function selectTab(which)
+	activeTab = which
+	local onErrors = which == "errors"
+	errorsView.Visible = onErrors
+	settingsView.Visible = not onErrors
+	errorsTab.TextColor3 = onErrors and COLORS.ink or COLORS.dim
+	settingsTab.TextColor3 = onErrors and COLORS.dim or COLORS.ink
+	errorsTab.Underline.Visible = onErrors
+	settingsTab.Underline.Visible = not onErrors
+	if onErrors and refreshInspector then
+		if refreshPlanState then
+			refreshPlanState()
+		end
+		refreshInspector()
+	end
+end
+errorsTab.MouseButton1Click:Connect(function()
+	selectTab("errors")
+end)
+settingsTab.MouseButton1Click:Connect(function()
+	selectTab("settings")
+end)
+selectTab("settings") -- initial tab
+
+-- Refresh the Errors panel whenever the widget is (re)opened on that tab.
+mainWidget:GetPropertyChangedSignal("Enabled"):Connect(function()
+	if mainWidget.Enabled and activeTab == "errors" and refreshInspector then
+		if refreshPlanState then
+			refreshPlanState()
+		end
+		refreshInspector()
+	end
+end)
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Settings panel (the settingsView tab of the shared widget)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Scrollable content column.
+local settingsScroll = mk("ScrollingFrame", {
+	Size = UDim2.new(1, 0, 1, 0),
+	BackgroundTransparency = 1,
+	BorderSizePixel = 0,
+	ScrollBarThickness = 6,
+	ScrollBarImageColor3 = COLORS.strokeStrong,
+	CanvasSize = UDim2.new(0, 0, 0, 0),
+	AutomaticCanvasSize = Enum.AutomaticSize.Y,
+}, settingsView)
+mk("UIListLayout", { Padding = UDim.new(0, 14), SortOrder = Enum.SortOrder.LayoutOrder }, settingsScroll)
+mk("UIPadding", {
+	PaddingLeft = UDim.new(0, 16),
+	PaddingRight = UDim.new(0, 16),
+	PaddingTop = UDim.new(0, 4),
+	PaddingBottom = UDim.new(0, 16),
+}, settingsScroll)
 
 local settingsStatus -- forward-declared; bottom status label
--- forward-declared; defined after the Inspector dock exists (it updates dock +
--- upload UI too). Probes GET /api/account/token-info and renders the Pro+ state.
-local refreshPlanState
 
 -- The persistent Pro+ upgrade copy (matches Inspector.PRO_GATE_MESSAGE).
 local PRO_GATE_MESSAGE = "Studio plugin is a Pro+ feature — upgrade in the dashboard."
@@ -261,52 +643,100 @@ local function setSettingsStatus(text, color)
 	settingsStatus.TextColor3 = color or COLORS.dim
 end
 
--- Backend URL
-mkLabel(settingsRoot, "Backend URL", 18, COLORS.dim)
-local urlBox = mkTextBox(settingsRoot, "http://localhost:3000")
+-- ── Connection ────────────────────────────────────────────────────────────────
+local connSection = mkSection(settingsScroll, "Connection")
+connSection.LayoutOrder = 1
+mkFieldLabel(connSection, "Backend URL")
+local urlBox = mkTextBox(connSection, "https://api.bloxtools.io")
 urlBox.Text = settingsModel:backendUrl()
 
--- Access token (masked after save; the box never re-displays a stored token)
-mkLabel(settingsRoot, "Access token (blxt_…, read + upload scopes)", 18, COLORS.dim)
+-- ── Credentials ───────────────────────────────────────────────────────────────
+local credSection = mkSection(settingsScroll, "Credentials")
+credSection.LayoutOrder = 2
 
--- Pro+ gating banner — anchored right under the access-token label because the
--- token IS the gate (ALL PAT use is a Pro+ feature). Populated by refreshPlanState()
--- from GET /api/account/token-info; hidden until we know the plan. On a Free
--- account it shows the persistent upgrade prompt; on Pro/Studio it stays hidden.
-local proBanner = mkLabel(settingsRoot, "", 32, COLORS.bad)
-proBanner.TextWrapped = true
+mkFieldLabel(credSection, "Access token")
+
+-- Pro+ gating banner — the token IS the gate (all PAT use is Pro+). Populated by
+-- refreshPlanState() from GET /api/account/token-info; hidden until we know the
+-- plan. Free → persistent upgrade prompt; Pro/Studio → stays hidden.
+local proBanner = mkInfoLabel(credSection, "", COLORS.bad)
+proBanner.FontFace = brandFont("bodyMedium", Enum.Font.GothamMedium, Enum.FontWeight.Medium)
 proBanner.Visible = false
 
-local patState = mkLabel(settingsRoot, "Stored: " .. SettingsModel.maskPat(settingsModel:pat()), 16, COLORS.dim)
-local patBox = mkTextBox(settingsRoot, "paste a new token to replace")
-
--- Project key (never re-displayed; only its fingerprint is shown)
-mkLabel(settingsRoot, "Project key (44-char base64 from the dashboard)", 18, COLORS.dim)
-local _, _, storedFp = settingsModel:projectKey()
-local keyState = mkLabel(
-	settingsRoot,
-	storedFp and ("Stored: key with fingerprint " .. storedFp .. " — compare with the dashboard") or "Stored: (none)",
-	16,
-	COLORS.dim
+local existingPat = settingsModel:pat()
+local patState = mkInfoLabel(
+	credSection,
+	existingPat and ("Saved · " .. SettingsModel.maskPat(existingPat)) or "No token saved",
+	nil,
+	true
 )
-local keyBox = mkTextBox(settingsRoot, "paste the key to replace (shown once in the dash)")
+local patBox = mkTextBox(credSection, "blxt_…")
 
-local saveButton = mkButton(settingsRoot, "Save settings", 140)
+mkFieldLabel(credSection, "Project key")
+local _, _, storedFp = settingsModel:projectKey()
+local keyState = mkInfoLabel(
+	credSection,
+	storedFp and ("Saved · fingerprint " .. storedFp) or "No key saved",
+	nil,
+	true
+)
+local keyBox = mkTextBox(credSection, "Paste to replace")
 
--- Game picker
-mkLabel(settingsRoot, "Game", 18, COLORS.dim)
+-- Primary action: persists Backend URL + token + project key together.
+local saveButton = mkPrimaryButton(credSection, "Save settings", 0)
+saveButton.Size = UDim2.new(1, 0, 0, 36)
+
+-- ── Game ────────────────────────────────────────────────────────────────────────
+local gameSection = mkSection(settingsScroll, nil) -- custom header row below
+gameSection.LayoutOrder = 3
+
+-- Header row: "GAME" eyebrow on the left, a subtle "Load games" action on the right.
+local gameHeader = mk("Frame", {
+	Size = UDim2.new(1, 0, 0, 18),
+	BackgroundTransparency = 1,
+	LayoutOrder = -100,
+}, gameSection)
+local gameEyebrow = mkEyebrow(gameHeader, "Games")
+gameEyebrow.Size = UDim2.new(1, -80, 1, 0)
+local loadGamesButton = mk("TextButton", {
+	Text = "Load games",
+	Size = UDim2.new(0, 0, 1, 0),
+	AutomaticSize = Enum.AutomaticSize.X,
+	Position = UDim2.new(1, 0, 0.5, 0),
+	AnchorPoint = Vector2.new(1, 0.5),
+	BackgroundTransparency = 1,
+	TextColor3 = COLORS.text,
+	FontFace = brandFont("bodyMedium", Enum.Font.GothamMedium, Enum.FontWeight.Medium),
+	TextSize = 13,
+	AutoButtonColor = false,
+	BorderSizePixel = 0,
+}, gameHeader)
+mk("Frame", { -- white underline (link affordance)
+	Size = UDim2.new(1, 0, 0, 1),
+	Position = UDim2.new(0, 0, 1, -1),
+	AnchorPoint = Vector2.new(0, 1),
+	BackgroundColor3 = COLORS.ink,
+	BorderSizePixel = 0,
+}, loadGamesButton)
+loadGamesButton.MouseEnter:Connect(function()
+	loadGamesButton.TextColor3 = COLORS.ink
+end)
+loadGamesButton.MouseLeave:Connect(function()
+	loadGamesButton.TextColor3 = COLORS.text
+end)
+
 local gameId, gameName = settingsModel:game()
-local gameState = mkLabel(settingsRoot, gameId and ("Selected: " .. tostring(gameName)) or "Selected: (none)", 16, COLORS.dim)
-local loadGamesButton = mkButton(settingsRoot, "Load my games", 140)
+local gameState = mkInfoLabel(gameSection, gameId and ("Selected · " .. tostring(gameName)) or "No game selected")
 local gamesList = mk("Frame", {
-	Size = UDim2.new(1, -16, 0, 0),
+	Size = UDim2.new(1, 0, 0, 0),
 	AutomaticSize = Enum.AutomaticSize.Y,
 	BackgroundTransparency = 1,
-}, settingsRoot)
-mk("UIListLayout", { Padding = UDim.new(0, 3), SortOrder = Enum.SortOrder.LayoutOrder }, gamesList)
+}, gameSection)
+mk("UIListLayout", { Padding = UDim.new(0, 6), SortOrder = Enum.SortOrder.LayoutOrder }, gamesList)
 
-settingsStatus = mkLabel(settingsRoot, "", 32, COLORS.dim)
-settingsStatus.TextWrapped = true
+-- ── Footer status line ───────────────────────────────────────────────────────
+settingsStatus = mkInfoLabel(settingsScroll, "", nil, true)
+settingsStatus.LayoutOrder = 4
 
 local function makeInspectorClient()
 	local pat = settingsModel:pat()
@@ -329,6 +759,7 @@ end
 saveButton.MouseButton1Click:Connect(function()
 	local okUrl, urlOrMsg = settingsModel:setBackendUrl(urlBox.Text)
 	if not okUrl then
+		markFieldInvalid(urlBox)
 		setSettingsStatus(urlOrMsg, COLORS.bad)
 		return
 	end
@@ -337,21 +768,23 @@ saveButton.MouseButton1Click:Connect(function()
 	if patBox.Text ~= "" then
 		local okPat, msg = settingsModel:setPat(patBox.Text)
 		if not okPat then
+			markFieldInvalid(patBox)
 			setSettingsStatus(msg, COLORS.bad)
 			return
 		end
 		patBox.Text = "" -- never leave the full token sitting in a TextBox
-		patState.Text = "Stored: " .. SettingsModel.maskPat(settingsModel:pat())
+		patState.Text = "Saved · " .. SettingsModel.maskPat(settingsModel:pat())
 	end
 
 	if keyBox.Text ~= "" then
 		local okKey, fpOrMsg = settingsModel:setProjectKey(keyBox.Text)
 		if not okKey then
-			setSettingsStatus(fpOrMsg, COLORS.bad)
+			markFieldInvalid(keyBox)
+				setSettingsStatus(fpOrMsg, COLORS.bad)
 			return
 		end
 		keyBox.Text = "" -- never leave the key sitting in a TextBox
-		keyState.Text = "Stored: key with fingerprint " .. fpOrMsg .. " — compare with the dashboard"
+		keyState.Text = "Saved · fingerprint " .. fpOrMsg
 	end
 
 	setSettingsStatus("Saved.", COLORS.good)
@@ -391,59 +824,99 @@ loadGamesButton.MouseButton1Click:Connect(function()
 			setSettingsStatus("No games on this account yet — create one in the dashboard.", COLORS.bad)
 			return
 		end
+		local selectedGameId = settingsModel:game()
+		local rows = {}
+		-- List rows are flat rectangles (not pills) so they read as choices, not
+		-- actions. The selected row gets a brighter fill, accent border + marker.
+		local function paintRow(row, sel)
+			local edge = row:FindFirstChildOfClass("UIStroke")
+			row.BackgroundColor3 = sel and COLORS.rowHover or COLORS.surface
+			if edge then
+				edge.Color = sel and COLORS.ink or COLORS.stroke
+				edge.Thickness = sel and 1.5 or 1
+			end
+			local nameLabel = row:FindFirstChild("Name")
+			if nameLabel then
+				nameLabel.TextColor3 = sel and COLORS.ink or COLORS.dim
+			end
+		end
 		for i, g in games do
-			local b = mkButton(gamesList, g.name, 0)
-			b.Size = UDim2.new(1, 0, 0, 24)
-			b.LayoutOrder = i
-			b.MouseButton1Click:Connect(function()
+			local row = mk("TextButton", {
+				Text = "",
+				Size = UDim2.new(1, 0, 0, 30),
+				BackgroundColor3 = COLORS.surface,
+				AutoButtonColor = true,
+				BorderSizePixel = 0,
+				LayoutOrder = i,
+			}, gamesList)
+			corner(row, 8)
+			stroke(row, COLORS.stroke, 1, 0)
+			mk("TextLabel", {
+				Name = "Name",
+				Text = g.name,
+				Size = UDim2.new(1, -24, 1, 0),
+				Position = UDim2.new(0, 12, 0, 0),
+				BackgroundTransparency = 1,
+				TextColor3 = COLORS.dim,
+				TextXAlignment = Enum.TextXAlignment.Left,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				FontFace = brandFont("body", Enum.Font.Gotham),
+				TextSize = 14,
+			}, row)
+			rows[#rows + 1] = row
+			paintRow(row, g.id == selectedGameId)
+			row.MouseButton1Click:Connect(function()
 				settingsModel:setGame(g.id, g.name)
-				gameState.Text = "Selected: " .. g.name
-				setSettingsStatus("Game selected.", COLORS.good)
+				selectedGameId = g.id
+				for _, rb in rows do
+					paintRow(rb, false)
+				end
+				paintRow(row, true)
+				gameState.Text = "Selected · " .. g.name
+				setSettingsStatus("Now tracking " .. g.name .. ".", COLORS.good)
 			end)
 		end
-		setSettingsStatus(("%d game(s) — click one to select."):format(#games))
+		-- Show the count in the section heading rather than underneath.
+		gameEyebrow.Text = (#games == 1) and "1 GAME" or (#games .. " GAMES")
+		setSettingsStatus("Click a game to select.")
 	end)
 end)
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- Inspector dock (error list, jump-to-line, Upload source now)
+-- Errors panel (the errorsView tab of the shared widget)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-local inspectorRoot = mk("Frame", {
-	Size = UDim2.new(1, 0, 1, 0),
-	BackgroundColor3 = COLORS.bg,
-	BorderSizePixel = 0,
-}, inspectorWidget)
-
+-- Action row (Upload / Refresh).
 local topBar = mk("Frame", {
-	Size = UDim2.new(1, 0, 0, 34),
+	Size = UDim2.new(1, -32, 0, 32),
+	Position = UDim2.new(0, 16, 0, 6),
 	BackgroundTransparency = 1,
-}, inspectorRoot)
+}, errorsView)
 mk("UIListLayout", {
 	FillDirection = Enum.FillDirection.Horizontal,
-	Padding = UDim.new(0, 6),
+	Padding = UDim.new(0, 8),
 	VerticalAlignment = Enum.VerticalAlignment.Center,
 	SortOrder = Enum.SortOrder.LayoutOrder,
 }, topBar)
-mk("UIPadding", { PaddingLeft = UDim.new(0, 8) }, topBar)
 
-local uploadButton = mkButton(topBar, "Upload source now", 150)
-uploadButton.BackgroundColor3 = COLORS.accent
-local refreshButton = mkButton(topBar, "Refresh", 80)
+local uploadButton = mkPrimaryButton(topBar, "Upload source now", 158)
+local refreshButton = mkButton(topBar, "Refresh", 84)
 
 local inspectorStatus = mk("TextLabel", {
-	Text = "Open the dock and press Refresh.",
-	Size = UDim2.new(1, -16, 0, 30),
-	Position = UDim2.new(0, 8, 0, 36),
+	Text = "Press Refresh to load open error groups.",
+	Size = UDim2.new(1, -32, 0, 28),
+	Position = UDim2.new(0, 16, 0, 46),
 	BackgroundTransparency = 1,
 	TextColor3 = COLORS.dim,
 	TextXAlignment = Enum.TextXAlignment.Left,
 	TextWrapped = true,
-	Font = Enum.Font.SourceSans,
-	TextSize = 14,
-}, inspectorRoot)
+	FontFace = brandFont("body", Enum.Font.Gotham),
+	TextSize = 13,
+}, errorsView)
 
-local listFrame = mkListFrame(inspectorRoot)
+local listFrame = mkListFrame(errorsView)
+listFrame.Position = UDim2.new(0, 8, 0, 82)
+listFrame.Size = UDim2.new(1, -8, 1, -90)
 
 local function setInspectorStatus(text, color)
 	inspectorStatus.Text = text
@@ -460,11 +933,13 @@ local function applyPlanState(gated)
 		proBanner.Visible = true
 		setInspectorStatus(PRO_GATE_MESSAGE, COLORS.bad)
 		uploadButton.Text = "Upload (Pro+)"
-		uploadButton.BackgroundColor3 = COLORS.row
+		uploadButton.BackgroundColor3 = COLORS.surface -- muted: not an available action
+		uploadButton.TextColor3 = COLORS.dim2
 	else
 		proBanner.Visible = false
 		uploadButton.Text = "Upload source now"
-		uploadButton.BackgroundColor3 = COLORS.accent
+		uploadButton.BackgroundColor3 = COLORS.white -- primary CTA restored
+		uploadButton.TextColor3 = COLORS.bg
 	end
 end
 
@@ -542,7 +1017,7 @@ local function jumpToGroup(client, group)
 end
 
 local refreshing = false
-local function refreshInspector()
+function refreshInspector()
 	if refreshing then
 		return
 	end
@@ -584,23 +1059,42 @@ local function refreshInspector()
 		for i, group in groups do
 			local row = mk("TextButton", {
 				Text = "",
-				Size = UDim2.new(1, 0, 0, 44),
-				BackgroundColor3 = COLORS.row,
+				Size = UDim2.new(1, 0, 0, 48),
+				BackgroundColor3 = COLORS.surface,
 				BorderSizePixel = 0,
 				AutoButtonColor = true,
+				ClipsDescendants = true,
 				LayoutOrder = i,
 			}, listFrame)
-			local msg = mkLabel(row, ("[%d×] %s"):format(group.count, group.message), 20)
-			msg.Position = UDim2.new(0, 8, 0, 2)
-			msg.TextSize = 15
+			corner(row, 10)
+			stroke(row, COLORS.stroke, 1, 0)
+			-- Count badge on the left for quick scanning.
+			local badge = mk("TextLabel", {
+				Text = tostring(group.count) .. "×",
+				Size = UDim2.new(0, 44, 0, 18),
+				Position = UDim2.new(0, 10, 0, 8),
+				BackgroundColor3 = COLORS.rowHover,
+				TextColor3 = COLORS.text,
+				FontFace = brandFont("mono", Enum.Font.RobotoMono),
+				TextSize = 12,
+				TextXAlignment = Enum.TextXAlignment.Center,
+				TextTruncate = Enum.TextTruncate.AtEnd,
+				BorderSizePixel = 0,
+			}, row)
+			corner(badge, 6)
+			local msg = mkLabel(row, group.message, 18)
+			msg.Position = UDim2.new(0, 62, 0, 6)
+			msg.Size = UDim2.new(1, -70, 0, 18)
+			msg.TextSize = 14
 			local where = mkLabel(
 				row,
 				group.topPath and (tostring(group.topPath) .. (group.topFn and (" · " .. group.topFn) or "")) or "(no frame)",
-				16,
+				14,
 				COLORS.dim
 			)
-			where.Position = UDim2.new(0, 8, 0, 22)
-			where.TextSize = 13
+			where.Position = UDim2.new(0, 62, 0, 26)
+			where.Size = UDim2.new(1, -70, 0, 14)
+			where.TextSize = 12
 			row.MouseButton1Click:Connect(function()
 				task.spawn(jumpToGroup, client, group)
 			end)
@@ -611,18 +1105,13 @@ end
 
 refreshButton.MouseButton1Click:Connect(refreshInspector)
 
--- Refresh when the dock is opened, then every 30s WHILE it stays open
--- (manual refresh always available). No polling while closed.
-inspectorWidget:GetPropertyChangedSignal("Enabled"):Connect(function()
-	if inspectorWidget.Enabled then
-		refreshPlanState()
-		refreshInspector()
-	end
-end)
+-- Poll every 30s while the widget is open AND the Errors tab is active. The
+-- refresh-on-open / refresh-on-tab-switch is wired in the shell (selectTab and
+-- the widget Enabled signal). No polling while closed or on the Settings tab.
 task.spawn(function()
 	while pluginAlive do
 		task.wait(30)
-		if pluginAlive and inspectorWidget.Enabled then
+		if pluginAlive and mainWidget.Enabled and activeTab == "errors" then
 			refreshInspector()
 		end
 	end
