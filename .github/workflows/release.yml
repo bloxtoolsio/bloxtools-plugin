@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and attach BloxToolsPlugin.rbxm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # Gate the release on the crypto proof suite — never ship a build whose
+      # cipher does not match WebCrypto on the NIST vectors.
+      - name: Run crypto proof suite
+        run: npm test
+
+      # Installs the rojo version pinned in rokit.toml.
+      - name: Install rokit toolchain
+        uses: CompeyDev/setup-rokit@v0.2.1
+
+      - name: Build plugin model
+        run: rojo build default.project.json -o BloxToolsPlugin.rbxm
+
+      - name: Compute SHA-256
+        run: |
+          sha256sum BloxToolsPlugin.rbxm | tee BloxToolsPlugin.rbxm.sha256
+          echo "SHA256=$(cut -d' ' -f1 < BloxToolsPlugin.rbxm.sha256)" >> "$GITHUB_ENV"
+
+      - name: Create / update GitHub release and attach the artifact
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            BloxToolsPlugin.rbxm
+            BloxToolsPlugin.rbxm.sha256
+          generate_release_notes: true
+          # Put the verifiable hash directly in the notes so users can check it
+          # per TRUST.md before installing.
+          append_body: true
+          body: |
+            ### Verify this build
+
+            `BloxToolsPlugin.rbxm` SHA-256:
+
+            ```
+            ${{ env.SHA256 }}
+            ```
+
+            See [TRUST.md](https://github.com/bloxtoolsio/bloxtools-plugin/blob/main/TRUST.md#verifying-a-release)
+            for how to verify it, or rebuild from this tag with the pinned rojo
+            (`rokit install && rojo build default.project.json -o BloxToolsPlugin.rbxm`).

@@ -1,0 +1,27 @@
+# Build / release artifacts — the .rbxm is built by CI and attached to releases,
+# never committed.
+*.rbxm
+*.rbxmx
+*.rbxl
+*.rbxlx
+/build/
+/out/
+
+# Toolchain caches (rokit / aftman / foreman). Keep rokit.toml itself.
+/.rokit/
+/.aftman/
+/.foreman/
+rokit.lock
+aftman.lock
+
+# Node
+/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

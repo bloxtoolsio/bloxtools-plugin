@@ -1,0 +1,9 @@
+# Toolchain manifest for rokit (https://github.com/rojo-rbx/rokit).
+# Pins the exact rojo used to build BloxToolsPlugin.rbxm so CI and every
+# contributor produce the same artifact. Run `rokit install` to fetch it.
+#
+# This file is also compatible with aftman/foreman-style tooling that reads a
+# `[tools]` table of `owner/repo@version` entries.
+
+[tools]
+rojo = "rojo-rbx/rojo@7.6.1"

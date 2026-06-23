@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  crypto-tests:
+    name: Crypto proof suite (Node)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # No dependencies to install — the suite uses only Node built-ins.
+      - name: Run crypto proof suite
+        run: npm test
+
+  build:
+    name: Build BloxToolsPlugin.rbxm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Installs the toolchain pinned in rokit.toml (rojo @ the pinned version),
+      # so CI and contributors build the identical artifact.
+      - name: Install rokit toolchain
+        uses: CompeyDev/setup-rokit@v0.2.1
+
+      - name: Build plugin model
+        run: rojo build default.project.json -o BloxToolsPlugin.rbxm
+
+      - name: Upload .rbxm artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BloxToolsPlugin-rbxm
+          path: BloxToolsPlugin.rbxm
+          if-no-files-found: error

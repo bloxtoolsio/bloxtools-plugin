@@ -1,0 +1,15 @@
+{
+  "name": "bloxtools-plugin-tools",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Developer tooling and the executable crypto proof chain for the BloxTools Studio plugin. Not published — the plugin itself ships as a built BloxToolsPlugin.rbxm on a GitHub release.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "gen-vectors": "node tools/gen-vectors-luau.mjs"
+  }
+}
