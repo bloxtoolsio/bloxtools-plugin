@@ -74,23 +74,25 @@ Then install `BloxToolsPlugin.rbxm` exactly as in Option A, step 3.
 
 ## Connect
 
-1. Create a BloxTools account and a project at <https://bloxtools.io>.
-2. In the dashboard, mint a **personal access token** (`blxt_…`) with `read` +
-   `upload` scopes (Settings → API tokens), and generate a **project key** (shown
-   once — copy both the key and its fingerprint).
+1. Install the plugin (above) and create a BloxTools account at
+   <https://bloxtools.io>.
+2. In the dashboard, copy your **access token** (`blxt_…`) and your
+   **project key** (encrypts your source). Both are provisioned for you — no
+   scopes to pick, nothing to mint by hand.
 3. In Studio, open **BloxTools → Settings** and fill in:
-   - **Backend URL** — your BloxTools deployment's URL (the default
-     `http://localhost:3000` is for a local self-hosted backend).
-   - **Access token** — paste the `blxt_…` PAT. The plugin shows only its last 4
-     characters afterwards.
-   - **Project key** — paste it. The plugin shows the key's *fingerprint* (8 hex
-     chars); confirm it matches the dashboard. The key is never displayed again
-     and never leaves your machine.
+   - **Access token** — paste the `blxt_…` token. The plugin shows only its last
+     4 characters afterwards.
+   - **Project key (encrypts your source)** — paste it. The plugin shows the
+     key's *fingerprint* (8 hex chars); confirm it matches the dashboard. The
+     key is never displayed again and never leaves your machine.
    - **Game** — press *Load my games* and click the game this place belongs to.
-4. The first request makes Studio ask permission for the plugin to call your
-   backend's domain — exactly one domain, the only permission it ever requests.
-   **If any version of this plugin asks for Script Injection, refuse it and
-   report it** (see [TRUST.md](TRUST.md)).
+   - **Backend URL** — pre-filled to the hosted production backend. Leave it as
+     is; only change it if you self-host.
+4. Publish your place, then press **Upload source now** (see *Use* below). The
+   first request makes Studio ask permission for the plugin to call the backend
+   domain — exactly one domain, the only permission it ever requests. **If any
+   version of this plugin asks for Script Injection, refuse it and report it**
+   (see [TRUST.md](TRUST.md)).
 
 Settings persist via Studio's per-user plugin settings, as plaintext on your own
 disk. That is deliberate: the key is *yours*, held on *your* machine — treat that

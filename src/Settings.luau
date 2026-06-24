@@ -17,8 +17,9 @@
 	  fingerprint).
 
 	Setting keys (all strings):
-	  BloxTools_BackendUrl  default http://localhost:3000 (no public-URL default;
-	                        deploy configuration is the operator's choice)
+	  BloxTools_BackendUrl  defaults to the hosted production backend
+	                        (https://bloxtools-backend-production.up.railway.app);
+	                        remains user-editable for self-hosted deployments)
 	  BloxTools_Pat         "blxt_…" personal access token (read+upload scopes)
 	  BloxTools_ProjectKey  44-char base64 project key (PASTED, never minted here
 	                        — Luau has no CSPRNG; the dashboard generates it)
@@ -38,7 +39,7 @@
 local Settings = {}
 Settings.__index = Settings
 
-local DEFAULT_BACKEND_URL = "http://localhost:3000"
+local DEFAULT_BACKEND_URL = "https://bloxtools-backend-production.up.railway.app"
 
 local KEYS = {
 	backendUrl = "BloxTools_BackendUrl",

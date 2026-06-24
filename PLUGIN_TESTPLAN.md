@@ -38,14 +38,18 @@ Total time: ~25 minutes.
 
 Open **BloxTools → Settings**:
 
-- Backend URL `http://localhost:3000` → Save. PASS: "Saved."
-- Paste a malformed token (e.g. `abc`) → Save. PASS: error names the `blxt_`
-  format; nothing stored.
-- Paste the real PAT → Save. PASS: box clears; "Stored: blxt_…XXXX" shows the
-  correct last 4. The full token is visible nowhere.
+- Backend URL is pre-filled to the hosted production backend
+  (`https://bloxtools-backend-production.up.railway.app`); for this local test
+  set it to `http://localhost:3000` → Save. PASS: "Saved." (Leaving the
+  pre-filled production URL is the normal flow; only self-hosters change it.)
+- Paste a malformed access token (e.g. `abc`) → Save. PASS: error names the
+  `blxt_` format; nothing stored.
+- Paste the real access token → Save. PASS: box clears; "Stored: blxt_…XXXX"
+  shows the correct last 4. The full token is visible nowhere.
 - Paste a truncated project key (delete one char) → Save. PASS: length error,
-  nothing stored. Paste the real key → Save. PASS: box clears; the displayed
-  fingerprint EQUALS the fingerprint the dashboard showed (8 hex chars).
+  nothing stored. Paste the real project key → Save. PASS: box clears; the
+  displayed fingerprint EQUALS the fingerprint the dashboard showed (8 hex
+  chars).
 - Press *Load my games* → click your test game. PASS: "Selected: <name>".
 - First HTTP call: Studio prompts to allow this plugin to call
   `localhost:3000` — and that is the ONLY domain ever prompted for. PASS.
