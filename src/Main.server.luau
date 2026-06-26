@@ -1163,6 +1163,13 @@ uploadButton.MouseButton1Click:Connect(function()
 	-- File → Publish, so PlaceVersion already reflects the new version —
 	-- shown in the progress text so a stale upload is visible.
 	local placeVersion = game.PlaceVersion
+	if placeVersion < 1 then
+		-- game.PlaceVersion is 0 in an unpublished place / Studio playtest. A v0
+		-- source upload is rejected by the backend (it must pin a real version),
+		-- so stop here with a clear message instead of a confusing failure.
+		setInspectorStatus("Place version is 0 — Publish to Roblox first, then upload.", COLORS.bad)
+		return
+	end
 
 	uploading = true
 	uploadButton.Text = "Uploading…"
